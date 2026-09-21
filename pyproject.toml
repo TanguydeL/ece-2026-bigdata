@@ -1,0 +1,17 @@
+[project]
+name = "big-data-ece"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "TanguydeL", email = "tanguy.delongeaux@edu.ece.fr" }
+]
+requires-python = ">=3.13"
+dependencies = []
+
+[project.scripts]
+big-data-ece = "big_data_ece:main"
+
+[build-system]
+requires = ["uv_build>=0.12.10,<0.13.0"]
+build-backend = "uv_build"
