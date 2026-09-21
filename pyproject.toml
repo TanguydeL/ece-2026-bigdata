@@ -7,7 +7,9 @@ authors = [
     { name = "TanguydeL", email = "tanguy.delongeaux@edu.ece.fr" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "faker>=40.37.0",
+]
 
 [project.scripts]
 big-data-ece = "big_data_ece:main"
