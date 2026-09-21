@@ -12,7 +12,8 @@ dependencies = [
 ]
 
 [project.scripts]
-big-data-ece = "big_data_ece:main"
+dataset-users = "big_data_ece.dataset_users:main"
+dataset-orders = "big_data_ece.dataset_orders:main"
 
 [build-system]
 requires = ["uv_build>=0.12.10,<0.13.0"]
