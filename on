@@ -1,0 +1,45 @@
+{
+    "Versions": [
+        {
+            "ETag": "\"532f250e1fed13c5b6b42620808d7e64\"",
+            "Size": 5855,
+            "StorageClass": "STANDARD",
+            "Key": "bronze/users.csv",
+            "VersionId": "672673ee2cff2acc9ebe7073c774a02b",
+            "IsLatest": true,
+            "LastModified": "2026-09-28T17:25:35+00:00",
+            "Owner": {
+                "DisplayName": "admin",
+                "ID": "admin"
+            }
+        },
+        {
+            "ETag": "\"96fbd2f64cd7d37e32bb4b02e2730530\"",
+            "Size": 7351,
+            "StorageClass": "STANDARD",
+            "Key": "bronze/users.csv",
+            "VersionId": "672673eea92f31fefa746a0072a97734",
+            "IsLatest": false,
+            "LastModified": "2026-09-28T17:25:32+00:00",
+            "Owner": {
+                "DisplayName": "admin",
+                "ID": "admin"
+            }
+        },
+        {
+            "ETag": "\"96fbd2f64cd7d37e32bb4b02e2730530\"",
+            "Size": 7351,
+            "StorageClass": "STANDARD",
+            "Key": "bronze/users.csv",
+            "VersionId": "null",
+            "IsLatest": false,
+            "LastModified": "2026-09-28T17:22:43+00:00",
+            "Owner": {
+                "DisplayName": "admin",
+                "ID": "admin"
+            }
+        }
+    ],
+    "RequestCharged": null,
+    "Prefix": "bronze/users.csv"
+}
