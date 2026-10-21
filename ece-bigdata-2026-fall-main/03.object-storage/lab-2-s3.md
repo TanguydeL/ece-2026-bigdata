@@ -653,10 +653,29 @@ aws s3 --profile 'default' ls "s3://$LAB_BUCKET_NAME/bronze/" --recursive
 
 Questions:
 
-- Why are the credentials stored in a Secret and not in the ConfigMap?
-- The credentials of Onyxia are temporary. What happens if the Job is executed again tomorrow? How would a production
-  platform provide credentials to a Job?
-- How would you turn this Job into a daily ingestion?
+1. Why Secret instead of ConfigMap?
+  A Secret stores sensitive data such as passwords and credentials. A ConfigMap stores non-sensitive configuration. Secrets still require proper access control   and encryption.
+2. What happens if the Job runs tomorrow?
+  Temporary Onyxia credentials may expire, causing authentication failures. In production, use workload identity or a secret manager to provide fresh credentials automatically.
+3. How to run the Job daily?
+  Use a Kubernetes CronJob with a daily schedule:
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: daily-ingestion
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: ingestion
+              image: your-ingestion-image
+
+
+This runs the ingestion every day at 02:00 UTC. In production, also configure retries, monitoring, and secure credentials.
 
 Once verified, remove the Kubernetes objects. The objects of the bronze layer are kept for the next modules.
 
