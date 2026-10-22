@@ -177,8 +177,11 @@ Questions:
 
 - The persistent secret is stored in a file of your home directory. What are the risks, and why are they limited on
   Onyxia?
+  The risk is that anyone who gains access to the file could steal your credentials and use them to access your data or services. However, this risk is limited on Onyxia because the credentials are stored in your personal home directory, which is not normally accessible to other users. In addition, you can renew your credentials through Onyxia, invalidating the old ones and reducing the impact of a leak.
+  
 - The secret is visible to any process running as your user. How would you restrict the access to S3 for a Kubernetes
   Job?
+    You can restrict S3 access for a Kubernetes Job by using a Kubernetes Secret to store the credentials and injecting them into the Job as environment variables. However, any process running inside the container could still access them.  
 
 ## Initialization file
 
@@ -287,8 +290,14 @@ Questions:
 
 - The dataset contains 50 users, each one with at least one order, and 2829 orders with unique identifiers. Why does
   `approx_unique` return 40 and 3167?
+  approx_unique uses a probabilistic algorithm to estimate the number of distinct values, rather than counting them exactly.
+•	Users: the actual number is 50, but the estimate is 40.
+•	Orders: the actual number is 2,829, but the estimate is 3,167.
+The estimates can be higher or lower than the true counts because the algorithm uses a compact data structure to approximate cardinality. It is faster and uses less memory than exact COUNT(DISTINCT ...), especially for large datasets, but it is not guaranteed to return the exact result.
+
 - The types are inferred from a sample of the file. Which issue may occur with a large file whose first rows are not
   representative?
+  DuckDB may infer incorrect column types if the first rows are not representative of the entire file. For example, it may infer a column as an integer when later rows contain text or dates. This can cause conversion errors, unexpected NULL values, or incorrect query results. To avoid this, explicitly specify the column types or increase the sample size used for type inference.
 
 ## Load the tables
 
@@ -534,11 +543,91 @@ ORDER BY month;
 Write the queries answering the following questions:
 
 1. What is the average number of orders per user, and the average quantity per order?
+
+SELECT AVG(order_count) AS avg_orders_per_user
+FROM (
+    SELECT user_uuid, COUNT(DISTINCT uuid) AS order_count
+    FROM orders
+    GROUP BY user_uuid
+);
+SELECT AVG(order_quantity) AS avg_quantity_per_order
+FROM (
+    SELECT uuid, SUM(quantity) AS order_quantity
+    FROM orders
+    GROUP BY uuid
+);
+
 2. For each user, what is the date of their first and last order, and the number of days between them?
+
+SELECT
+    user_uuid,
+    MIN(date) AS first_order_date,
+    MAX(date) AS last_order_date,
+    DATE_DIFF('day', MIN(date), MAX(date)) AS days_between
+FROM orders
+GROUP BY user_uuid
+ORDER BY user_uuid;
+
+
 3. Which hour of the day has the highest quantity sold? Use the `hour` function.
+
+SELECT
+    HOUR(date) AS hour,
+    SUM(quantity) AS total_quantity
+FROM orders
+GROUP BY HOUR(date)
+ORDER BY total_quantity DESC
+LIMIT 1;
+
 4. For each product, what is the month-over-month variation of the quantity sold, in percent? Use the `lag` window
    function.
+
+   WITH monthly_sales AS (
+    SELECT
+        product,
+        DATE_TRUNC('month', date) AS month,
+        SUM(quantity) AS monthly_quantity
+    FROM orders
+    GROUP BY product, DATE_TRUNC('month', date)
+),
+sales_with_lag AS (
+    SELECT
+        product,
+        month,
+        monthly_quantity,
+        LAG(monthly_quantity) OVER (
+            PARTITION BY product
+            ORDER BY month
+        ) AS previous_quantity
+    FROM monthly_sales
+)
+SELECT
+    product,
+    month,
+    monthly_quantity,
+    previous_quantity,
+    ROUND(
+        100.0 * (monthly_quantity - previous_quantity)
+        / NULLIF(previous_quantity, 0),
+        2
+    ) AS variation_percent
+FROM sales_with_lag
+ORDER BY product, month;
+
 5. Which users ordered every product at least once?
+
+SELECT
+    u.uuid,
+    u.username,
+    u.name
+FROM users u
+JOIN orders o ON o.user_uuid = u.uuid
+GROUP BY u.uuid, u.username, u.name
+HAVING COUNT(DISTINCT o.product) = (
+    SELECT COUNT(DISTINCT product)
+    FROM orders
+)
+ORDER BY u.username;
 
 ## Parquet export
 
@@ -573,7 +662,10 @@ are stored in 2 KB.
 Questions:
 
 - Why is the `uuid` column barely compressed?
+The uuid column is barely compressed because UUIDs are high-cardinality values: each value is unique and appears random. There are few or no repeated patterns for the compression algorithm to exploit, so the data remains close to its original size.
+
 - Why is the compressed size of some columns larger than their uncompressed size?
+Some columns have a compressed size larger than their uncompressed size because compression adds metadata and encoding overhead. For small columns or columns containing mostly unique or random values, the space saved by compression may not be enough to offset this overhead, making the compressed representation larger than the original data.
 
 ## Hive partitioning
 
@@ -631,7 +723,10 @@ Only 1 of the 6 files is read.
 Questions:
 
 - Why is partitioning by `uuid` a bad idea? Refer to the limitations of object storage presented in the previous module.
+Partitioning by uuid is a bad idea because each UUID is almost unique, creating a huge number of partitions and many small files. Object storage such as S3 has overhead for each object, and listing or accessing a large number of objects is slow and costly. This increases metadata and request overhead and reduces query performance. It is better to partition by columns with fewer distinct values, such as date or product.
+
 - Which partition column would you choose for a dataset of orders growing every day?
+I would choose date (partitioned by year and month) because the dataset grows over time. This makes it easier to query specific periods and avoids creating too many small partitions.
 
 ## CSV vs. Parquet at scale
 
@@ -738,8 +833,12 @@ Questions:
 
 - How many row groups does the file contain, and how many are skipped by the filter `date >= '2100-01-01'`?
 - The orders are sorted by date. What would happen to the efficiency of the filter if they were shuffled?
+If the orders were shuffled, the date ranges of row groups would overlap more. Parquet would be less able to skip row groups using min/max statistics, so more data would need to be read and the query would become slower.
+
 - Compare the execution time of the CSV and Parquet queries. Which part of the difference is due to the network, which
   part to the parsing of the CSV file?
+Parquet queries are generally faster because Parquet is a columnar format with typed data and metadata, allowing DuckDB to read only the required columns and skip irrelevant data. CSV requires parsing text and inferring or converting data types. Network latency and data transfer also affect execution time, especially when reading large files from object storage. To distinguish these costs, I would compare the queries using local files and remote files.
+
 
 ## Python API
 
