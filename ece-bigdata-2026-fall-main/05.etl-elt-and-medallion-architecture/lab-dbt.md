@@ -349,8 +349,11 @@ Questions:
 
 - The bronze CSV files are left untouched. What is the benefit when a bug is found in a transformation, six months
   later?
+  If a bug is found six months later, you can fix the transformation and rerun it using the original data, without needing to collect the data again.
+  
 - The source reads the whole file on every query. Which other format and layout would you choose if the orders were
   ingested every hour for years?
+Use Parquet, partitioned by date (e.g., year/month/day). Parquet is compressed and columnar, so queries read less data and run faster. Date partitioning lets you scan only the relevant periods.
 
 ### Commit
 
