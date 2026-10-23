@@ -535,7 +535,10 @@ DESCRIBE main_silver.stg_orders;
 Questions:
 
 - The silver models are views. What happens when a view is queried, and when is it preferable to a table?
+When a view is queried, DuckDB executes its underlying SQL query to retrieve the data. Views are preferable when you want transformations to stay up to date with the source data and avoid storing duplicate data. Tables are preferable when you need faster repeated queries or to store a snapshot of results.
+
 - `UUID` values are stored in 16 bytes. How many bytes does the `VARCHAR` representation use?
+Its standard string representation, such as 550e8400-e29b-41d4-a716-446655440000, uses 36 bytes in UTF-8/ASCII (32 hexadecimal characters + 4 hyphens), excluding any additional storage overhead.
 
 ## Data tests
 
