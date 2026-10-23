@@ -728,6 +728,10 @@ Questions:
 
 - Which strategy would you choose for a dashboard displaying the age of the customers? For a dashboard displaying the
   sales per region?
+  •	Customer age: Use a view, since age changes over time and should be calculated from birthdates dynamically.
+•	Sales per region: Use a table (or a pre-aggregated table updated periodically), since aggregations can be expensive to recalculate for every dashboard query.
+Use a custom data test that checks whether each state and ZIP code combination exists in a trusted reference dataset. You need reference data mapping ZIP codes to valid states, such as an official postal-code dataset.
+
 - The addresses associate states with random zip codes, `KY 01352` for example. Which test would detect it, and which
   reference data would it require?
 
@@ -997,10 +1001,11 @@ You will need reference data containing valid ZIP-code ranges or mappings.
 
 Consider:
 
-- Where should this reference data come from?
-- Should it be stored as a dbt seed?
-- Should the validation happen in the silver layer?
-- What happens when the reference data changes?
+- Where should this reference data come from? From a reliable, authoritative source, such as the USPS or another documented dataset mapping ZIP codes to states. The data should be accurate and regularly maintained.
+- Should it be stored as a dbt seed? Yes, if the reference data is a relatively small, static CSV file. A dbt seed makes it easy to version-control the data and load it into the data warehouse. If the data is large or changes frequently, a dedicated data source may be more appropriate.
+- Should the validation happen in the silver layer? Yes. The silver layer is where data is cleaned and validated. A dbt data test can compare each user's state and ZIP code against the reference data and flag inconsistent combinations.
+- What happens when the reference data changes? Update the reference dataset, review and version-control the changes, then run uv run dbt seed followed by the relevant dbt tests. The tests will validate the existing silver data against the updated reference. If the silver models themselves depend on that reference, rebuild them as needed.
+
 
 ### 5. Materialization experiment
 
@@ -1024,10 +1029,17 @@ Compare the two approaches.
 Consider:
 
 - Where is the data stored?
+•	view: Stores the SQL query definition; the data remains in the underlying source files.
+•	table: Stores the results of the transformation in the database.
 - When is the transformation executed?
+•	view: When a query accesses the view.
+•	table: When dbt builds or rebuilds the table.
 - What happens when the underlying CSV changes?
-- Which approach requires more storage?
-- Which approach avoids re-reading the source files for every query?
+•	view: Changes are reflected when the view is queried.
+•	table: The table remains unchanged until dbt rebuilds it.
+- Which approach requires more storage? table, because it stores the transformed data in addition to the source files.
+- Which approach avoids re-reading the source files for every query? table, because queries read the stored results instead of rerunning the transformation against the CSV files.
+
 
 Restore the original configuration when finished.
 
