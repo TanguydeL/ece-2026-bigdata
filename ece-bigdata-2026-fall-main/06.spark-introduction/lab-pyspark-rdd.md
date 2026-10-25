@@ -91,7 +91,10 @@ print(orders_repartitioned.getNumPartitions())
 Questions:
 
 - What decides the number of partitions `textFile()` picks by default, for a file this size?
+The number of partitions created by textFile() depends on the file size, Hadoop input splits, and Spark configuration. In this experiment, both orders.csv and users.csv were divided into 2 partitions despite their small sizes. This shows that partitioning also depends on Spark's execution environment.
+
 - `repartition()` and `coalesce()` both change the partition count. Which one shuffles data, and which one doesn't?
+repartition() performs a full shuffle to redistribute data evenly across partitions and can increase or decrease their number. In contrast, coalesce() avoids shuffling by default and is mainly used to reduce the number of partitions more efficiently.
 
 ## Lazy evaluation and lineage
 
@@ -112,7 +115,10 @@ print(orders_data.count())
 Questions:
 
 - Call `orders_data.count()` a second time. Does the Spark UI show a new stage? Why?
+Calling orders_data.count() a second time normally creates a new Spark job and may show new stages in the Spark UI. This happens because Spark uses lazy evaluation and does not automatically cache the RDD, so it must recompute the data each time an action is executed.
+
 - At which point in this notebook would `.cache()` change that answer?
+Using .cache() on orders_data before the first count() would change this behavior. The first action would compute and store the data in memory, allowing the second count() to reuse the cached data instead of reading and processing the original file again. A new job may still appear, but it will use the cached partitions.
 
 ## The cost of no schema: the multiline address
 
@@ -134,8 +140,11 @@ This count is higher than the number of users in the file, for exactly that reas
 Questions:
 
 - Why does `spark.read.csv(multiLine=True)` not have this problem, while `sc.textFile()` does?
+spark.read.csv(multiLine=True) correctly handles CSV files containing quoted fields with line breaks because it uses a CSV parser that understands the file structure. In contrast, sc.textFile() reads each physical line separately, so it can incorrectly split a single CSV record into multiple lines.
+
 - In general terms, what has to be true of a file format for a line-oriented reader like `textFile()` to be safe to
   use on it?
+If a product contained an extra comma, split(",") would produce too many fields and cause a ValueError during parsing because the code expects exactly five fields. This happens because a simple string split does not handle quoted commas correctly.
 
 Work around it by keeping only the lines that start a genuine record, recognisable by their leading UUID:
 
@@ -174,7 +183,10 @@ Nothing here validates the number of fields, the format of `date`, or that `quan
 Questions:
 
 - What would happen to this cell if one line in `orders.csv` had an extra comma inside `product`?
+If a product contained an extra comma, split(",") would produce too many fields and cause a ValueError during parsing because the code expects exactly five fields. This happens because a simple string split does not handle quoted commas correctly.
+
 - Where does the DataFrame API perform the equivalent check, and when?
+The DataFrame API uses a CSV-aware parser that handles quoted commas and checks malformed records according to the configured parsing mode. Parsing generally happens when an action triggers execution, although some actions, such as count(), may not validate every field.
 
 ## Key-value RDDs: total quantity per user
 
@@ -202,7 +214,10 @@ Open the Spark UI and compare the shuffle read/write size of the two stages.
 Questions:
 
 - `reduceByKey` combines values on each partition before shuffling. What does `groupByKey` shuffle instead, and why is that more expensive?
+groupByKey() shuffles all individual values associated with each key across the network, whereas reduceByKey() combines values locally before shuffling. This makes groupByKey() more expensive because it transfers more data over the network and requires more memory to store the grouped values.
+
 - For which aggregations would `groupByKey` be unavoidable, `reduceByKey` not being able to express them?
+groupByKey() is useful when an aggregation needs access to all individual values for a key, such as collecting complete lists or performing operations that depend on individual records. However, it is rarely strictly unavoidable, since many such operations can also be expressed more efficiently using aggregateByKey() or combineByKey().
 
 ## Manual deduplication
 
@@ -227,7 +242,10 @@ Questions:
 
 - `partitionBy()` in the window function is described as a wide transformation, shuffling rows so every row of a
   given `order_id` lands on the same partition. What plays that role here?
+In the RDD approach, reduceByKey() plays the same role as partitionBy() in the window function by bringing values with the same order_id together. It also combines values locally before the shuffle to reduce data transfer, while the window function keeps individual rows for calculations within each group.
+
 - Which version states the intent more directly: the window function, or the `reduceByKey` with a custom combiner?
+The window function expresses the intent more directly because it clearly defines the partitioning by order_id and the operation performed within each group. The reduceByKey() approach requires a custom combiner, making the logic more explicit but generally less readable.
 
 ## Joining orders with users
 
@@ -251,9 +269,15 @@ Questions:
 
 - `join()` is a wide transformation on **both** RDDs. What would need to be true of how `orders_kv` and `users_kv`
   are partitioned for Spark to skip the shuffle?
+Spark can skip the shuffle during join() if both orders_kv and users_kv are already partitioned using the same compatible partitioner, with the same number of partitions, and their matching keys are located in corresponding partitions.
+
 - Replace `join()` with `leftOuterJoin()`. What changes in the result if a `user_id` in `orders` has no matching user?
+Replacing join() with leftOuterJoin() keeps all orders, even when a user_id has no matching user. In that case, the user information is returned as None instead of the order being excluded from the result.
+
 - `enriched` is not yet filtered or aggregated. What is the risk of calling `.collect()` on it directly, on a dataset
   much larger than this one?
+Calling .collect() on a large enriched RDD brings all its data into the driver's memory. This can cause excessive memory usage, slow performance, or an out-of-memory error that crashes the driver.
+
 
 ## Exercises
 
@@ -265,6 +289,9 @@ Questions:
    the two cells for line count, and compare `.explain()` on the DataFrame version with the RDD's `.toDebugString()`.
 4. Time `orders_rdd.count()` and `user_quantity.count()` before and after removing `.cache()` from the parsing cell,
    with `time.perf_counter()`. Check the **Storage** tab of the Spark UI in both cases.
+
+aggregateByKey() computes the number of orders and total quantity for each user in a single aggregation. The average order quantity is then calculated by dividing the total quantity by the order count. In this experiment, one user had 4 orders with a total quantity of 12, resulting in an average of 3.0.
+The leftOuterJoin() experiment successfully detected 1 order without a matching user. The DataFrame API expressed the aggregation more concisely, and .explain() showed HashAggregate and Exchange operations, while .toDebugString() displayed the RDD dependencies and cached partitions. Caching stored 2 partitions using 168 KiB of memory. The second user_quantity.count() was faster, decreasing from 0.3955 to 0.2026 seconds, while orders_rdd.count() was slightly slower. A complete performance comparison still requires measurements without caching.
 
 ## Cleanup
 
